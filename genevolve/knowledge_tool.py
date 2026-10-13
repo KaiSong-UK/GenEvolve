@@ -11,12 +11,9 @@ skill interface needed for rollout, evaluation, and model release usage.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 
-
-SKILL_NAMES: List[str] = [
+SKILL_NAMES: list[str] = [
     "spatial_layout",
     "aesthetic_drawing",
     "text_rendering",
@@ -36,9 +33,9 @@ def _default_skills_dir() -> Path:
 class SkillBank:
     """Static skill bank: loads markdown instructions for the 8 skills."""
 
-    def __init__(self, skills_dir: Optional[str] = None) -> None:
+    def __init__(self, skills_dir: str | None = None) -> None:
         self.skills_dir = Path(skills_dir).resolve() if skills_dir else _default_skills_dir()
-        self.skills: Dict[str, Dict[str, str]] = {}
+        self.skills: dict[str, dict[str, str]] = {}
         self._load()
 
     def _load(self) -> None:
@@ -55,13 +52,13 @@ class SkillBank:
                     "instructions": md_path.read_text(encoding="utf-8"),
                 }
 
-    def get(self, name: str) -> Optional[str]:
+    def get(self, name: str) -> str | None:
         entry = self.skills.get(name)
         if not entry:
             return None
         return entry.get("instructions")
 
-    def available(self) -> List[str]:
+    def available(self) -> list[str]:
         return sorted(self.skills.keys())
 
 
@@ -95,7 +92,7 @@ class KnowledgeTool:
         },
     }
 
-    def __init__(self, skills_dir: Optional[str] = None) -> None:
+    def __init__(self, skills_dir: str | None = None) -> None:
         self.skill_bank = SkillBank(skills_dir=skills_dir)
 
     def call(self, skill_name: str = "", **_: object) -> str:

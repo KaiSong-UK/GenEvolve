@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     from openai import OpenAI
@@ -32,7 +32,6 @@ except ImportError:  # pragma: no cover
 from .knowledge_tool import KnowledgeTool
 from .system_prompt import FINAL_STEP_MESSAGE, SYSTEM_PROMPT
 from .tools import ImageSearchTool, WebTextSearchTool
-
 
 # ---------------------------------------------------------------------------
 # IMG_### identifier manager
@@ -49,11 +48,11 @@ class ImageIdManager:
 
     def __init__(self) -> None:
         self.counter = 0
-        self.by_id: Dict[str, Dict[str, str]] = {}
-        self._key_to_id: Dict[str, str] = {}
+        self.by_id: dict[str, dict[str, str]] = {}
+        self._key_to_id: dict[str, str] = {}
 
-    def register(self, refs: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        out: List[Dict[str, str]] = []
+    def register(self, refs: list[dict[str, str]]) -> list[dict[str, str]]:
+        out: list[dict[str, str]] = []
         for r in refs:
             key = (r.get("local_path") or r.get("url") or "").strip()
             if not key:
@@ -76,10 +75,10 @@ class ImageIdManager:
             out.append(rr)
         return out
 
-    def lookup(self, img_id: str) -> Optional[Dict[str, str]]:
+    def lookup(self, img_id: str) -> dict[str, str] | None:
         return self.by_id.get(img_id)
 
-    def all_image_paths(self) -> Dict[str, str]:
+    def all_image_paths(self) -> dict[str, str]:
         return {iid: rec.get("local_path", "") for iid, rec in self.by_id.items()}
 
 
@@ -92,7 +91,7 @@ _TOOL_CALL_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 _ANSWER_RE = re.compile(r"<answer>\s*(\{.*?\})\s*</answer>", re.DOTALL)
 
 
-def _parse_tool_call(text: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+def _parse_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
     m = _TOOL_CALL_RE.search(text)
     if not m:
         return None
@@ -107,7 +106,7 @@ def _parse_tool_call(text: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     return name, args
 
 
-def _parse_answer(text: str) -> Optional[Dict[str, Any]]:
+def _parse_answer(text: str) -> dict[str, Any] | None:
     m = _ANSWER_RE.search(text)
     if not m:
         return None
@@ -117,7 +116,7 @@ def _parse_answer(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _format_image_search_block(query: str, refs: List[Dict[str, str]]) -> str:
+def _format_image_search_block(query: str, refs: list[dict[str, str]]) -> str:
     lines = [f"--- image search result for [{query}] ---"]
     for r in refs:
         img_id = r.get("img_id", "")
@@ -153,13 +152,13 @@ class GenEvolveResult:
 
     prompt: str
     gen_prompt: str
-    reference_images: List[Dict[str, str]]
-    messages: List[Dict[str, str]] = field(default_factory=list)
+    reference_images: list[dict[str, str]]
+    messages: list[dict[str, str]] = field(default_factory=list)
     termination: str = "answer"
     rounds: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "prompt": self.prompt,
             "gen_prompt": self.gen_prompt,
@@ -199,10 +198,10 @@ class GenEvolveAgent:
         max_prompt_length: int = 6144,
         max_response_length: int = 30000,
         n_max_reference_images: int = 2,
-        text_search_tool: Optional[WebTextSearchTool] = None,
-        image_search_tool: Optional[ImageSearchTool] = None,
-        knowledge_tool: Optional[KnowledgeTool] = None,
-        system_prompt: Optional[str] = None,
+        text_search_tool: WebTextSearchTool | None = None,
+        image_search_tool: ImageSearchTool | None = None,
+        knowledge_tool: KnowledgeTool | None = None,
+        system_prompt: str | None = None,
         request_timeout: int = 600,
     ) -> None:
         if OpenAI is None:
@@ -233,7 +232,7 @@ class GenEvolveAgent:
     def _exec_tool(
         self,
         name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         img_manager: ImageIdManager,
     ) -> str:
         if name == "search":
@@ -259,7 +258,7 @@ class GenEvolveAgent:
     # -----------------------------------------------------------------
     # LLM call
     # -----------------------------------------------------------------
-    def _call_llm(self, messages: List[Dict[str, str]]) -> str:
+    def _call_llm(self, messages: list[dict[str, str]]) -> str:
         completion = self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -276,16 +275,16 @@ class GenEvolveAgent:
     def run(self, user_prompt: str) -> GenEvolveResult:
         """Run a single rollout and return the final prompt-reference program."""
 
-        messages: List[Dict[str, str]] = [
+        messages: list[dict[str, str]] = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         img_manager = ImageIdManager()
         rounds = 0
-        error: Optional[str] = None
+        error: str | None = None
         termination = "max_rounds_reached"
         gen_prompt = ""
-        reference_images: List[Dict[str, str]] = []
+        reference_images: list[dict[str, str]] = []
 
         while rounds < self.max_rounds:
             rounds += 1
@@ -355,17 +354,17 @@ class GenEvolveAgent:
     # -----------------------------------------------------------------
     @staticmethod
     def _finalize_answer(
-        answer_payload: Dict[str, Any],
+        answer_payload: dict[str, Any],
         img_manager: ImageIdManager,
         n_max_reference_images: int = 2,
-    ) -> Tuple[str, List[Dict[str, str]]]:
+    ) -> tuple[str, list[dict[str, str]]]:
         gen_prompt = (answer_payload.get("gen_prompt") or "").strip()
         raw_refs = answer_payload.get("reference_images") or []
         if not isinstance(raw_refs, list):
             raw_refs = []
 
         # Resolve IMG_### -> records.
-        resolved: List[Dict[str, str]] = []
+        resolved: list[dict[str, str]] = []
         for r in raw_refs:
             if not isinstance(r, dict):
                 continue
