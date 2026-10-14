@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Paper-compatible GenEvolve image evaluation with Gemini.
 
 This is the public version of the evaluator used for the GenEvolve benchmark
@@ -31,11 +30,10 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from openai import OpenAI, RateLimitError
 from tqdm import tqdm
-
 
 LLM_TIMEOUT_SEC = float(os.environ.get("GENEVOLVE_EVAL_TIMEOUT_SEC", "300"))
 LLM_MAX_TRY = int(os.environ.get("GENEVOLVE_EVAL_MAX_TRY", "20"))
@@ -80,7 +78,7 @@ def _ensure_dir(path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
 
-def _read_json(path: str) -> Optional[Any]:
+def _read_json(path: str) -> Any | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -97,7 +95,7 @@ def _write_json(path: str, obj: Any) -> None:
     os.replace(tmp_path, path)
 
 
-def _write_csv(path: str, summary: Dict[str, Any]) -> None:
+def _write_csv(path: str, summary: dict[str, Any]) -> None:
     _ensure_dir(os.path.dirname(path))
     fields = [
         "split",
@@ -111,7 +109,7 @@ def _write_csv(path: str, summary: Dict[str, Any]) -> None:
         "overall",
         "overall_missing_zero",
     ]
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     rows.append({"split": "all", **summary["all"]})
     for split, metrics in sorted(summary.get("by_eval_type", {}).items()):
         rows.append({"split": f"eval_type:{split}", **metrics})
@@ -303,14 +301,14 @@ Rationale requirements (MANDATORY):
 Output JSON only. No markdown. No extra text."""
 
 
-def _parse_flat_score_json(content: str) -> Dict[str, Any]:
+def _parse_flat_score_json(content: str) -> dict[str, Any]:
     """Recover score fields when the judge emits malformed JSON strings."""
     text = (content or "").strip()
     if not text:
         return {}
     text = re.sub(r"^```[a-zA-Z0-9]*\s*", "", text)
     text = re.sub(r"\s*```$", "", text).strip()
-    obj: Dict[str, Any] = {}
+    obj: dict[str, Any] = {}
     for key in (*SCORE_KEYS, "score"):
         match = re.search(rf'["\']?{re.escape(key)}["\']?\s*:\s*([^,\n}}\]]+)', text)
         if not match:
@@ -357,8 +355,8 @@ def _parse_llm_json(content: str) -> dict:
         raise ValueError("LLM output is not valid JSON.")
 
 
-def _call_llm_json(client: OpenAI, model: str, messages: List[dict], max_try: int = LLM_MAX_TRY) -> dict:
-    last_exc: Optional[BaseException] = None
+def _call_llm_json(client: OpenAI, model: str, messages: list[dict], max_try: int = LLM_MAX_TRY) -> dict:
+    last_exc: BaseException | None = None
     for attempt in range(1, max_try + 1):
         try:
             resp = client.chat.completions.create(
@@ -392,16 +390,16 @@ def _call_llm_json(client: OpenAI, model: str, messages: List[dict], max_try: in
     raise last_exc if last_exc else RuntimeError("LLM call failed")
 
 
-def _normalize_scores(obj: Any) -> Tuple[float, float, Optional[float], float, str]:
+def _normalize_scores(obj: Any) -> tuple[float, float, float | None, float, str]:
     """Return (faithfulness, visual_correctness, text_accuracy|None, aesthetics, rationale)."""
-    fallback: Tuple[float, float, Optional[float], float, str] = (0.0, 0.0, 0.0, 0.0, "")
+    fallback: tuple[float, float, float | None, float, str] = (0.0, 0.0, 0.0, 0.0, "")
     if not isinstance(obj, dict):
         return fallback
     f = _round_01(float(obj.get("faithfulness", 0)))
     v = _round_01(float(obj.get("visual_correctness", 0)))
     text_na = obj.get("text_accuracy_na")
     if text_na in (True, "true", "True", 1):
-        t: Optional[float] = None
+        t: float | None = None
     else:
         try:
             t = _round_01(float(obj.get("text_accuracy", 0)))
@@ -412,7 +410,7 @@ def _normalize_scores(obj: Any) -> Tuple[float, float, Optional[float], float, s
     return (f, v, t, a, rationale)
 
 
-def _candidate_paths(value: Any, roots: List[Path]) -> List[Path]:
+def _candidate_paths(value: Any, roots: list[Path]) -> list[Path]:
     if value is None:
         return []
     raw = str(value).strip()
@@ -424,14 +422,14 @@ def _candidate_paths(value: Any, roots: List[Path]) -> List[Path]:
     return [(root / p).resolve() for root in roots]
 
 
-def _resolve_path(value: Any, roots: List[Path]) -> Optional[str]:
+def _resolve_path(value: Any, roots: list[Path]) -> str | None:
     for path in _candidate_paths(value, roots):
         if path.exists():
             return str(path)
     return None
 
 
-def _generated_path(entry: dict, roots: List[Path]) -> Optional[str]:
+def _generated_path(entry: dict, roots: list[Path]) -> str | None:
     for key in ("output_path", "image_path", "generated_image", "gen_image"):
         found = _resolve_path(entry.get(key), roots)
         if found:
@@ -439,7 +437,7 @@ def _generated_path(entry: dict, roots: List[Path]) -> Optional[str]:
     return None
 
 
-def _gt_path(entry: dict, roots: List[Path]) -> Optional[str]:
+def _gt_path(entry: dict, roots: list[Path]) -> str | None:
     for key in ("gt_image", "ground_truth", "target_image", "reference_image"):
         found = _resolve_path(entry.get(key), roots)
         if found:
@@ -461,7 +459,7 @@ def _sample_success(entry: dict) -> bool:
     return bool(_generated_path(entry, [Path.cwd()]))
 
 
-def load_results(results_path: str) -> Tuple[List[dict], Path]:
+def load_results(results_path: str) -> tuple[list[dict], Path]:
     data = _read_json(results_path)
     if not isinstance(data, list):
         raise ValueError("results.json must be a JSON array.")
@@ -471,11 +469,11 @@ def load_results(results_path: str) -> Tuple[List[dict], Path]:
 
 def run_one_eval(
     entry: dict,
-    roots: List[Path],
+    roots: list[Path],
     client: OpenAI,
     model: str,
-    rate_limiter: Optional[RateLimiter] = None,
-) -> Tuple[str, bool, dict]:
+    rate_limiter: RateLimiter | None = None,
+) -> tuple[str, bool, dict]:
     """Returns (sample_id, ok, result_dict)."""
     sample_id = str(entry.get("id", ""))
     prompt = (entry.get("prompt") or entry.get("question") or "").strip()
@@ -517,11 +515,11 @@ def run_one_eval(
         return sample_id, False, {"error": str(exc)[:300]}
 
 
-def avg_score_dict(score_rows: List[dict]) -> dict:
+def avg_score_dict(score_rows: list[dict]) -> dict:
     """Average score dictionaries using the same text-NA handling as the evaluator."""
     if not score_rows:
         return {key: 0.0 for key in SUMMARY_SCORE_KEYS}
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for key in ("faithfulness", "visual_correctness", "aesthetics"):
         vals = [float(s.get(key, 0)) for s in score_rows if isinstance(s.get(key), (int, float))]
         out[key] = round(sum(vals) / len(vals), 4) if vals else 0.0
@@ -541,9 +539,9 @@ def avg_score_dict(score_rows: List[dict]) -> dict:
     return out
 
 
-def build_summary_for_output(rows: List[dict]) -> dict:
+def build_summary_for_output(rows: list[dict]) -> dict:
     """Build summary rows matching the released benchmark splits."""
-    summary: Dict[str, Any] = {"by_eval_type": {}, "overall_avg": {}}
+    summary: dict[str, Any] = {"by_eval_type": {}, "overall_avg": {}}
     for eval_type in sorted({_row_eval_type(row) for row in rows}):
         score_rows = [
             row["scores"]
@@ -559,9 +557,9 @@ def build_summary_for_output(rows: List[dict]) -> dict:
     return summary
 
 
-def build_output_with_summary(data: List[dict], results_by_id: Dict[str, dict]) -> Tuple[List[dict], dict]:
+def build_output_with_summary(data: list[dict], results_by_id: dict[str, dict]) -> tuple[list[dict], dict]:
     """Build output list in original order and append benchmark split summaries."""
-    sorted_items: List[dict] = []
+    sorted_items: list[dict] = []
     for index, entry in enumerate(data):
         sample_id = str(entry.get("id", index))
         record = results_by_id.get(sample_id)
@@ -593,34 +591,34 @@ def build_output_with_summary(data: List[dict], results_by_id: Dict[str, dict]) 
     return output_items, summary
 
 
-def eval_rows(data: Any) -> List[Dict[str, Any]]:
+def eval_rows(data: Any) -> list[dict[str, Any]]:
     if not isinstance(data, list):
         return []
     return [row for row in data if isinstance(row, dict) and "summary_type" not in row]
 
 
-def _row_eval_type(row: Dict[str, Any]) -> str:
+def _row_eval_type(row: dict[str, Any]) -> str:
     meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
     return str(meta.get("eval_type") or row.get("eval_type") or row.get("tier") or "unknown")
 
 
-def _row_category(row: Dict[str, Any]) -> str:
+def _row_category(row: dict[str, Any]) -> str:
     meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
     return str(row.get("category") or meta.get("category") or "unknown")
 
 
-def _row_difficulty(row: Dict[str, Any]) -> str:
+def _row_difficulty(row: dict[str, Any]) -> str:
     meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
     return str(row.get("difficulty") or meta.get("difficulty") or "unknown")
 
 
-def _row_case_id(row: Dict[str, Any]) -> str:
+def _row_case_id(row: dict[str, Any]) -> str:
     meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
     return str(meta.get("case_id") or meta.get("source_id") or row.get("id"))
 
 
-def avg_metric(rows: List[Dict[str, Any]], key: str) -> float:
-    vals: List[float] = []
+def avg_metric(rows: list[dict[str, Any]], key: str) -> float:
+    vals: list[float] = []
     for row in rows:
         scores = row.get("scores")
         if not isinstance(scores, dict):
@@ -631,7 +629,7 @@ def avg_metric(rows: List[Dict[str, Any]], key: str) -> float:
     return round(sum(vals) / len(vals), 4) if vals else 0.0
 
 
-def summarize_subset(rows: List[Dict[str, Any]], denominator: int) -> Dict[str, Any]:
+def summarize_subset(rows: list[dict[str, Any]], denominator: int) -> dict[str, Any]:
     ok = [row for row in rows if row.get("eval_success") is True and isinstance(row.get("scores"), dict)]
     out = {key: avg_metric(ok, key) for key in SUMMARY_SCORE_KEYS}
     out["count_eval_success"] = len(ok)
@@ -641,10 +639,10 @@ def summarize_subset(rows: List[Dict[str, Any]], denominator: int) -> Dict[str, 
     return out
 
 
-def build_benchmark_summary(eval_path: Path, total_cases: int) -> Dict[str, Any]:
+def build_benchmark_summary(eval_path: Path, total_cases: int) -> dict[str, Any]:
     rows = eval_rows(_read_json(str(eval_path)))
     denominator = total_cases or len(rows)
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "eval_json": str(eval_path),
         "total_cases": denominator,
         "all": summarize_subset(rows, denominator),
@@ -712,7 +710,7 @@ def main() -> None:
     summary_json = Path(args.summary_json).resolve() if args.summary_json else (base_dir / "summary.json")
     summary_csv = Path(args.summary_csv).resolve() if args.summary_csv else (base_dir / "summary.csv")
 
-    existing: Dict[str, dict] = {}
+    existing: dict[str, dict] = {}
     if args.resume and eval_path.exists():
         raw = _read_json(str(eval_path))
         if isinstance(raw, dict):
