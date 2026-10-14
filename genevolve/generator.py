@@ -26,11 +26,10 @@ import base64
 import io
 import json
 import os
-import random
 import time
 from pathlib import Path
 from threading import Lock
-from typing import Any, List, Optional
+from typing import Any
 
 try:
     from PIL import Image
@@ -55,7 +54,7 @@ def _require_pillow() -> None:
         )
 
 
-def _load_image(path: str) -> "Image.Image":
+def _load_image(path: str) -> Image.Image:
     _require_pillow()
     img = Image.open(path)
     if getattr(img, "mode", "") == "RGBA":
@@ -63,14 +62,14 @@ def _load_image(path: str) -> "Image.Image":
     return img
 
 
-def _img_to_base64(image: "Image.Image", fmt: str = "JPEG") -> str:
+def _img_to_base64(image: Image.Image, fmt: str = "JPEG") -> str:
     _require_pillow()
     buf = io.BytesIO()
     image.save(buf, format=fmt)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-def _bytes_to_image(raw: bytes) -> "Image.Image":
+def _bytes_to_image(raw: bytes) -> Image.Image:
     _require_pillow()
     img = Image.open(io.BytesIO(raw))
     img.load()
@@ -104,7 +103,7 @@ class QwenImageEditGenerator:
         guidance_scale: float = 1.0,
         long_side: int = 1024,
         size_multiple: int = 16,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> None:
         self.model_id = model_id
         self.device = device
@@ -133,7 +132,7 @@ class QwenImageEditGenerator:
             self.model_id, torch_dtype=torch_dtype
         ).to(self.device)
 
-    def _output_size(self, image_paths: List[str]) -> tuple[int, int]:
+    def _output_size(self, image_paths: list[str]) -> tuple[int, int]:
         if not image_paths:
             return self.long_side, self.long_side
         try:
@@ -147,7 +146,7 @@ class QwenImageEditGenerator:
             _round_to_multiple(rh * scale, self.size_multiple),
         )
 
-    def generate(self, prompt: str, image_paths: Optional[List[str]] = None) -> "Image.Image":
+    def generate(self, prompt: str, image_paths: list[str] | None = None) -> Image.Image:
         _require_pillow()
         self._ensure_pipe()
         image_paths = list(image_paths or [])
@@ -187,7 +186,7 @@ class QwenImageEditServiceGenerator:
 
     def __init__(
         self,
-        urls: List[str],
+        urls: list[str],
         path: str = "/generate",
         timeout: int = 1800,
         max_retries: int = 3,
@@ -217,8 +216,8 @@ class QwenImageEditServiceGenerator:
             self._cursor += 1
         return url
 
-    def _refs(self, image_paths: List[str]) -> List[str]:
-        out: List[str] = []
+    def _refs(self, image_paths: list[str]) -> list[str]:
+        out: list[str] = []
         for p in image_paths[: self.max_refs]:
             if not p or not Path(p).exists():
                 continue
@@ -226,7 +225,7 @@ class QwenImageEditServiceGenerator:
                 out.append(f"data:image/jpeg;base64,{base64.b64encode(fh.read()).decode('utf-8')}")
         return out
 
-    def _output_size(self, image_paths: List[str]) -> tuple[int, int]:
+    def _output_size(self, image_paths: list[str]) -> tuple[int, int]:
         if not image_paths or Image is None:
             return self.long_side, self.long_side
         try:
@@ -240,7 +239,7 @@ class QwenImageEditServiceGenerator:
             _round_to_multiple(rh * scale, self.size_multiple),
         )
 
-    def generate(self, prompt: str, image_paths: Optional[List[str]] = None) -> "Image.Image":
+    def generate(self, prompt: str, image_paths: list[str] | None = None) -> Image.Image:
         image_paths = list(image_paths or [])
         ref_urls = self._refs(image_paths)
         if not ref_urls:
@@ -258,7 +257,7 @@ class QwenImageEditServiceGenerator:
             "width": int(width),
             "height": int(height),
         }
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for attempt in range(self.max_retries):
             url = self._next_url()
             try:
@@ -302,9 +301,9 @@ class NanoBananaProGenerator:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gemini-3-pro-image-preview",
-        endpoint_template: Optional[str] = None,
+        endpoint_template: str | None = None,
         timeout: int = 600,
         max_retries: int = 5,
     ) -> None:
@@ -327,7 +326,7 @@ class NanoBananaProGenerator:
         self.max_retries = max(1, int(max_retries))
 
     @staticmethod
-    def _extract_inline_image(data: Any) -> Optional[str]:
+    def _extract_inline_image(data: Any) -> str | None:
         if not isinstance(data, dict):
             return None
         for cand in data.get("candidates") or []:
@@ -340,10 +339,10 @@ class NanoBananaProGenerator:
                         return str(b64)
         return None
 
-    def generate(self, prompt: str, image_paths: Optional[List[str]] = None) -> "Image.Image":
+    def generate(self, prompt: str, image_paths: list[str] | None = None) -> Image.Image:
         _require_pillow()
         image_paths = list(image_paths or [])
-        parts: List[dict] = [{"text": prompt}]
+        parts: list[dict] = [{"text": prompt}]
         for p in image_paths:
             if not p or not Path(p).exists():
                 continue
@@ -359,7 +358,7 @@ class NanoBananaProGenerator:
             "x-goog-api-key": self.api_key,
             "Content-Type": "application/json",
         }
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 resp = requests.post(
@@ -385,7 +384,7 @@ class NanoBananaProGenerator:
 
 
 __all__ = [
+    "NanoBananaProGenerator",
     "QwenImageEditGenerator",
     "QwenImageEditServiceGenerator",
-    "NanoBananaProGenerator",
 ]

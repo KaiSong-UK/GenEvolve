@@ -23,11 +23,11 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from genevolve.generator import (  # noqa: E402
+from genevolve.generator import (
     NanoBananaProGenerator,
     QwenImageEditGenerator,
     QwenImageEditServiceGenerator,
@@ -58,9 +58,9 @@ def _build_backend(args: argparse.Namespace):
     raise ValueError(f"Unknown backend: {args.backend}")
 
 
-def _ref_paths(record: Dict[str, Any]) -> List[str]:
+def _ref_paths(record: dict[str, Any]) -> list[str]:
     refs = record.get("reference_images") or []
-    paths: List[str] = []
+    paths: list[str] = []
     for r in refs:
         if not isinstance(r, dict):
             continue
@@ -70,13 +70,13 @@ def _ref_paths(record: Dict[str, Any]) -> List[str]:
     return paths
 
 
-def _save(summary: List[Dict[str, Any]], path: Path) -> None:
+def _save(summary: list[dict[str, Any]], path: Path) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)
 
 
-def _render_one(record: Dict[str, Any], backend: Any, images_dir: Path) -> Dict[str, Any]:
+def _render_one(record: dict[str, Any], backend: Any, images_dir: Path) -> dict[str, Any]:
     rec_id = str(record.get("id", "unknown"))
     gen_prompt = (record.get("gen_prompt") or "").strip()
     prompt = (record.get("prompt") or record.get("question") or "").strip()
@@ -86,7 +86,7 @@ def _render_one(record: Dict[str, Any], backend: Any, images_dir: Path) -> Dict[
     else:
         run_prompt, run_refs = prompt, []
     out_image = images_dir / f"{rec_id}.png"
-    info: Dict[str, Any] = dict(record)
+    info: dict[str, Any] = dict(record)
     try:
         image = backend.generate(run_prompt, run_refs)
         image.save(out_image)
@@ -148,7 +148,7 @@ def main() -> None:
     images_dir.mkdir(parents=True, exist_ok=True)
     summary_path = out_dir / "results.json"
 
-    summary: List[Dict[str, Any]] = []
+    summary: list[dict[str, Any]] = []
     parallel = max(1, int(args.parallel))
     if parallel == 1:
         for rec in records:
@@ -157,7 +157,7 @@ def main() -> None:
             _save(summary, summary_path)
             print(f"[GenEvolve] {info.get('id', 'unknown')} -> {info.get('image_status')}")
     else:
-        partial: List[Dict[str, Any] | None] = [None] * len(records)
+        partial: list[dict[str, Any] | None] = [None] * len(records)
         with ThreadPoolExecutor(max_workers=parallel) as ex:
             futures = {ex.submit(_render_one, rec, backend, images_dir): i for i, rec in enumerate(records)}
             for fut in as_completed(futures):

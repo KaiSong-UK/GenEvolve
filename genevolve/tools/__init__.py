@@ -10,6 +10,6 @@ The same protocol works with any Serper-compatible HTTP gateway as long as
 ``/search`` returns ``organic`` text results and ``/images`` returns ``images``.
 """
 
-from .web_search import WebTextSearchTool, ImageSearchTool
+from .web_search import ImageSearchTool, WebTextSearchTool
 
-__all__ = ["WebTextSearchTool", "ImageSearchTool"]
+__all__ = ["ImageSearchTool", "WebTextSearchTool"]

@@ -36,15 +36,15 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Allow running from a checkout without installing.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from genevolve import GenEvolveAgent  # noqa: E402
+from genevolve import GenEvolveAgent
 
 
-def _load_prompts(prompt: str | None, input_path: str | None, max_samples: int | None) -> List[Dict[str, Any]]:
+def _load_prompts(prompt: str | None, input_path: str | None, max_samples: int | None) -> list[dict[str, Any]]:
     if prompt:
         return [{"id": "single", "prompt": prompt}]
     if not input_path:
@@ -52,7 +52,7 @@ def _load_prompts(prompt: str | None, input_path: str | None, max_samples: int |
 
     path = Path(input_path).resolve()
     raw = path.read_text(encoding="utf-8")
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     if raw.strip().startswith("["):
         items = json.loads(raw)
     else:
@@ -63,7 +63,7 @@ def _load_prompts(prompt: str | None, input_path: str | None, max_samples: int |
             items.append(json.loads(line))
     if max_samples is not None:
         items = items[:max_samples]
-    cleaned: List[Dict[str, Any]] = []
+    cleaned: list[dict[str, Any]] = []
     for i, it in enumerate(items):
         if not isinstance(it, dict):
             raise ValueError(f"Sample {i} is not a JSON object.")
@@ -93,7 +93,7 @@ def _build_agent(args: argparse.Namespace) -> GenEvolveAgent:
     )
 
 
-def _save(results: List[Dict[str, Any]], path: Path) -> None:
+def _save(results: list[dict[str, Any]], path: Path) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)
@@ -126,9 +126,9 @@ def main() -> None:
     out_path = out_dir / "results.json"
 
     agent = _build_agent(args)
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
-    def _run_one(sample: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_one(sample: dict[str, Any]) -> dict[str, Any]:
         try:
             res = agent.run(sample["prompt"])
             d = res.to_dict()
@@ -153,7 +153,7 @@ def main() -> None:
             results.append(_run_one(s))
             _save(results, out_path)
     else:
-        partial: List[Dict[str, Any] | None] = [None] * len(prompts)
+        partial: list[dict[str, Any] | None] = [None] * len(prompts)
         with ThreadPoolExecutor(max_workers=args.parallel) as ex:
             futures = {ex.submit(_run_one, s): i for i, s in enumerate(prompts)}
             for fut in as_completed(futures):

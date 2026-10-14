@@ -9,13 +9,13 @@ parsing (``organic`` / ``images``) follow the standard Serper format.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import threading
 import time
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 try:
@@ -46,7 +46,7 @@ def _read_serper_api_key() -> str:
     return key
 
 
-def _serper_base_url(base_url: Optional[str]) -> str:
+def _serper_base_url(base_url: str | None) -> str:
     if base_url:
         return base_url.rstrip("/")
     return (os.environ.get("SERPER_BASE_URL") or DEFAULT_SERPER_BASE_URL).rstrip("/")
@@ -85,7 +85,7 @@ class WebTextSearchTool:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
+        base_url: str | None = None,
         timeout: int = 30,
         max_retries: int = 3,
     ) -> None:
@@ -94,13 +94,13 @@ class WebTextSearchTool:
         self.timeout = timeout
         self.max_retries = max(1, int(max_retries))
 
-    def _post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.base_url}/search"
         headers = {
             "X-API-KEY": _read_serper_api_key(),
             "Content-Type": "application/json",
         }
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
@@ -113,8 +113,8 @@ class WebTextSearchTool:
         raise RuntimeError(f"Serper /search failed after {self.max_retries} retries: {last_err}")
 
     @staticmethod
-    def _format_text_results(query: str, items: Sequence[Dict[str, Any]], top_k: int) -> str:
-        lines: List[str] = [f"--- search result for [{query}] ---"]
+    def _format_text_results(query: str, items: Sequence[dict[str, Any]], top_k: int) -> str:
+        lines: list[str] = [f"--- search result for [{query}] ---"]
         for idx, item in enumerate(items[:top_k], 1):
             title = (item.get("title") or "").strip()
             link = (item.get("link") or item.get("url") or "").strip()
@@ -132,7 +132,7 @@ class WebTextSearchTool:
             queries = [queries]
         if not queries:
             return "[search] empty queries"
-        out_blocks: List[str] = []
+        out_blocks: list[str] = []
         for q in queries:
             q = (q or "").strip()
             if not q:
@@ -185,8 +185,8 @@ class ImageSearchTool:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        download_dir: Optional[str] = None,
+        base_url: str | None = None,
+        download_dir: str | None = None,
         timeout: int = 30,
         max_retries: int = 3,
         download_workers: int = 4,
@@ -201,13 +201,13 @@ class ImageSearchTool:
         self._lock = threading.Lock()
 
     # ---- HTTP ----
-    def _post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.base_url}/images"
         headers = {
             "X-API-KEY": _read_serper_api_key(),
             "Content-Type": "application/json",
         }
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
@@ -232,7 +232,7 @@ class ImageSearchTool:
             pass
         return self.download_dir / f"{digest}{suffix}"
 
-    def _download(self, image_url: str) -> Optional[str]:
+    def _download(self, image_url: str) -> str | None:
         if not image_url:
             return None
         target = self._local_path_for(image_url)
@@ -252,7 +252,7 @@ class ImageSearchTool:
             return None
 
     # ---- Public API ----
-    def call(self, query: str = "", top_k: int = 5, **_: object) -> List[Dict[str, str]]:
+    def call(self, query: str = "", top_k: int = 5, **_: object) -> list[dict[str, str]]:
         """Return a list of {title, url, local_path, page_url}.
 
         The agent layer is responsible for assigning IMG_### identifiers.
@@ -266,8 +266,8 @@ class ImageSearchTool:
         except Exception:  # noqa: BLE001
             return []
 
-        results: List[Dict[str, str]] = []
-        candidate_urls: List[str] = []
+        results: list[dict[str, str]] = []
+        candidate_urls: list[str] = []
         for item in raw[: int(top_k)]:
             image_url = (
                 item.get("imageUrl")
